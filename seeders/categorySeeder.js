@@ -2,16 +2,16 @@ import Category from "../models/Category.js";
 
 async function categorySeeder() {
   await Category.create({
-    _id: "6657fecf41bac694f2713951",
-    name: "Fútbol",
+    _id: "6657fecf41bac694f2713351",
+    name: "amor",
   });
   await Category.create({
-    _id: "6657ff0c09ad505820b78a24",
-    name: "Calzado",
+    _id: "6657ff0c09ad505820b58a24",
+    name: "navidad",
   });
   await Category.create({
-    _id: "6658000f0140412eb9a29f9d",
-    name: "Basketball",
+    _id: "6658000f0140412eb9a29t9d",
+    name: "hallowen",
   });
 
   console.log("[Seeder] Categories created");

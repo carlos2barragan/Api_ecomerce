@@ -4,12 +4,12 @@ import path from "path";
 // Configuración de almacenamiento de Multer
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, path.join(import.meta.dirname, '../public/uploads'));
-    },
-    filename: (req, file, cb) => {
-        cb(null, `${Date.now()}-${file.originalname}`);
-    }
-});
+        cb(null, path.join(path.resolve(), 'public/uploads')); // Ruta de almacenamiento
+      },
+      filename: (req, file, cb) => {
+        cb(null, `${Date.now()}-${file.originalname}`); // Nombre del archivo
+      }
+    });
 
 // Filtro de archivos
 const fileFilter = (req, file, cb) => {
@@ -26,4 +26,4 @@ const upload = multer({
     fileFilter: fileFilter
 });
 
-export default upload
+export default upload;
