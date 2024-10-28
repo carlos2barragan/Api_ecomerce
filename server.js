@@ -5,6 +5,8 @@ import cors from 'cors';
 import express from 'express';
 import upload from './config/multer.config.js';
 import { expressjwt as checkJwt } from 'express-jwt';
+import helmet from 'helmet';
+import { body, validationResult } from 'express-validator';
 import productController from './controllers/productController.js';
 import authController from './controllers/authController.js';
 import userController from './controllers/userController.js';
@@ -19,87 +21,72 @@ import {
 const app = express();
 const router = express.Router();
 
-// Middleware
-app.use(cors());
-app.use(express.json());
-
 // Configuración de la carpeta de subida
 const uploadDir = path.join(path.resolve(), 'public/uploads');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-// Configura el secreto JWT
-const secret = process.env.JWT_SECRET || 'default_secret';
-
-// Rutas de productos
-router.get('/products', productController.list);
-router.get('/products/:id', productController.find);
-router.post('/products', checkJwt({ secret, algorithms: ['HS256'] }), productController.create); // Protegida por JWT
-router.get('/products/categoria/:categoriaId', productController.findByCategory);
-
-// Rutas de autenticación
-router.post('/auth/login', authController.login);
-router.post('/auth/register', upload.single('avatar'), userController.create);
-router.post('/auth/validate', authController.tokenIsValid);
-
-// Rutas de reseñas
-router.post('/reviews', createReview); // Protegida por JWT
-router.get('/reviews/:id', getReviewById);
-router.get('/reviews', getAllReviews);
-router.get('/reviews/products/:productoId', getReviewsByProductId); // Corrige el nombre del parámetro
-
-// Ruta para obtener el perfil del usuario (requiere autenticación)
-router.get('/user/profile', checkJwt({ secret, algorithms: ['HS256'] }), userController.getUserProfile);
+// Middleware
+app.use(cors());
+app.use(helmet());
+app.use(express.json());
+app.use('/public', express.static(uploadDir));
 
 // Usa el router en la aplicación
 app.use('/api', router);
 
-// Servir archivos estáticos desde la carpeta 'public'
-app.use('/public', express.static(uploadDir));
+// Rutas de productos
+router.get('/products', productController.list);
+router.get('/products/:id', productController.find);
+router.post('/products', checkJwt, productController.create);
+router.get('/products/categoria/:categoriaId', productController.findByCategory);
 
-// Middleware para servir avatares
-router.get('/uploads/avatar/:avatarName', (req, res) => {
-  const avatarName = req.params.avatarName;
-  const avatarPath = path.join(uploadDir, avatarName);
+// Rutas de autenticación
+router.post('/auth/login', authController.login);
+router.post('/auth/register', upload.single('avatar'), authController.register);
+router.post('/auth/validate', authController.tokenIsValid);
 
-  // Verifica si el avatar existe
-  fs.stat(avatarPath, (err, stat) => {
+// Rutas de reseñas
+router.post('/reviews', checkJwt, createReview);
+router.get('/reviews/:id', getReviewById);
+router.get('/reviews', getAllReviews);
+router.get('/reviews/products/:productoId', getReviewsByProductId);
+
+// Ruta para obtener el perfil del usuario (requiere autenticación)
+router.get('/user/profile', checkJwt, userController.getUserProfile);
+
+// Middleware para servir archivos
+const serveFile = (dir) => (req, res) => {
+  const fileName = req.params.fileName;
+  const filePath = path.join(dir, fileName);
+
+  fs.stat(filePath, (err, stat) => {
     if (err || !stat.isFile()) {
-      console.error('Avatar no encontrado:', avatarPath);
-      return res.status(404).json({ message: 'Avatar no encontrado' });
+      console.error('Archivo no encontrado:', filePath);
+      return sendError(res, 'Archivo no encontrado', 404);
     }
-
-    // Sirve el avatar
-    res.sendFile(avatarPath);
+    res.sendFile(filePath);
   });
-});
+};
 
-// Middleware para servir imágenes de productos
-router.get('/uploads/product/:imageName', (req, res) => {
-  const imageName = req.params.imageName;
-  const imagePath = path.join(uploadDir, 'product', imageName);
-
-  // Verifica si la imagen existe
-  fs.stat(imagePath, (err, stat) => {
-    if (err || !stat.isFile()) {
-      console.error('Imagen no encontrada:', imagePath);
-      return res.status(404).json({ message: 'Imagen no encontrada' });
-    }
-
-    // Sirve la imagen
-    res.sendFile(imagePath);
-  });
-});
+// Middleware para servir avatares e imágenes de productos
+router.get('/uploads/avatar/:fileName', serveFile(uploadDir));
+router.get('/uploads/product/:fileName', serveFile(path.join(uploadDir, 'product')));
 
 // Middleware de manejo de errores
 app.use((err, req, res, next) => {
   if (err.name === 'UnauthorizedError') {
-    return res.status(401).json({ message: 'Token inválido o no proporcionado.' });
+    return sendError(res, 'Token inválido o no proporcionado.', 401);
   }
   console.error(err.stack);
-  res.status(500).json({ message: 'Error del servidor' });
+  sendError(res, 'Error del servidor.');
 });
+
+// Función sendError para manejar respuestas de error
+function sendError(res, message, statusCode = 500) {
+  res.status(statusCode).json({ message });
+}
 
 // Configuración del puerto y escucha
 const PORT = process.env.PORT || 3000;
